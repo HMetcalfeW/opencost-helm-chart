@@ -2,9 +2,9 @@
 
 OpenCost and OpenCost UI
 
-![Version: 2.5.0](https://img.shields.io/badge/Version-2.5.0-informational?style=flat-square)
+![Version: 2.5.22](https://img.shields.io/badge/Version-2.5.21-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
-![AppVersion: 1.118.0](https://img.shields.io/badge/AppVersion-1.118.0-informational?style=flat-square)
+![AppVersion: 1.120.3](https://img.shields.io/badge/AppVersion-1.120.2-informational?style=flat-square)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/opencost)](https://artifacthub.io/packages/search?repo=opencost)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/opencost-oci)](https://artifacthub.io/packages/search?repo=opencost-oci)
 
@@ -31,6 +31,7 @@ $ helm install opencost opencost/opencost
 |-----|------|---------|-------------|
 | annotations | object | `{}` | Annotations to add to the all the resources |
 | clusterName | string | `"cluster.local"` | Override the default name of cluster - Can be found in /etc/kubernetes/admin.conf: clusters -> cluster -> name |
+| extraObjects | list | `[]` | Array of extra K8s manifests rendered through `tpl` and owned by the release. |
 | extraVolumes | list | `[]` | A list of volumes to be added to the pod |
 | fullnameOverride | string | `""` | Overwrite all resources name created by the chart |
 | imagePullSecrets | list | `[]` | List of secret names to use for pulling the images |
@@ -50,20 +51,25 @@ $ helm install opencost opencost/opencost
 | opencost.cloudCost.queryWindowDays | int | `7` | The max number of days that any single query will be made to construct Cloud Costs |
 | opencost.cloudCost.refreshRateHours | int | `6` | Number of hours between each run of the Cloud Cost pipeline |
 | opencost.cloudCost.runWindowDays | int | `3` | Number of days into the past that a Cloud Cost standard run will query for |
-| opencost.cloudIntegrationSecret | string | `""` |  |
+| opencost.cloudIntegrationJSON | string | `""` | Raw JSON for `cloud-integration.json`. Creates a Secret named `<fullname>-cloud-integration` in the release namespace. Mutually exclusive with `opencost.cloudIntegrationSecret`. |
+| opencost.cloudIntegrationSecret | string | `""` | Existing Secret containing `cloud-integration.json` for Cloud Costs. See https://www.opencost.io/docs/configuration/#cloud-costs. Create with: `kubectl create secret generic <SECRET_NAME> --from-file=cloud-integration.json -n opencost`. Mutually exclusive with `opencost.cloudIntegrationJSON`. |
 | opencost.customPricing.configPath | string | `"/tmp/custom-config"` | Path for the pricing configuration. |
 | opencost.customPricing.configmapName | string | `"custom-pricing-model"` | Customize the configmap name used for custom pricing |
 | opencost.customPricing.costModel | object | `{"CPU":1.25,"GPU":0.95,"RAM":0.5,"description":"Modified pricing configuration.","internetNetworkEgress":0.12,"regionNetworkEgress":0.01,"spotCPU":0.006655,"spotRAM":0.000892,"storage":0.25,"zoneNetworkEgress":0.01}` | More information about these values here: https://www.opencost.io/docs/configuration/on-prem#custom-pricing-using-the-opencost-helm-chart |
 | opencost.customPricing.createConfigmap | bool | `true` | Configures the pricing model provided in the values file. |
 | opencost.customPricing.enabled | bool | `false` | Enables custom pricing configuration |
 | opencost.customPricing.provider | string | `"custom"` | Sets the provider type for the custom pricing file. |
+| opencost.exporter.adminToken.enabled | bool | `false` | When true, the chart creates the admin-token Secret (if value is set) or mounts existingSecret as ADMIN_TOKEN. When false, ADMIN_TOKEN is not set and no secret is deployed. |
+| opencost.exporter.adminToken.existingSecret | string | `""` | Use an existing Secret for the admin token (recommended). Secret must contain the key below. |
+| opencost.exporter.adminToken.secretKey | string | `"ADMIN_TOKEN"` | Key in the Secret that holds the admin token (used for both value-created and existing secrets). |
+| opencost.exporter.adminToken.value | string | `""` | If set, the chart creates a Secret with this value and sets ADMIN_TOKEN from it (not recommended for production; use existingSecret instead). |
 | opencost.exporter.apiHttpRoute | object | `{"annotations":{},"enabled":false,"hostnames":[],"labels":{},"parentRefs":[{"name":"","namespace":"","sectionName":""}],"rules":[{"backendRefs":[{"name":"","port":9003}],"matches":[{"path":{"type":"PathPrefix","value":"/"}}]}]}` | HTTPRoute for OpenCost API (Gateway API) |
 | opencost.exporter.apiHttpRoute.annotations | object | `{}` | Annotations for HTTPRoute resource |
 | opencost.exporter.apiHttpRoute.enabled | bool | `false` | Enable HTTPRoute resource |
 | opencost.exporter.apiHttpRoute.hostnames | list | `[]` | Hostnames for the HTTPRoute |
 | opencost.exporter.apiHttpRoute.labels | object | `{}` | Labels for HTTPRoute resource |
 | opencost.exporter.apiHttpRoute.parentRefs | list | See [values.yaml](values.yaml) | Gateway API parent references |
-| opencost.exporter.apiHttpRoute.rules | list | See [values.yaml](values.yaml) | HTTPRoute rules |
+| opencost.exporter.apiHttpRoute.rules | list | See [values.yaml](values.yaml) | HTTPRoute rules. Each rule supports an optional `filters` list at the rule level and per-backendRef `filters` for Gateway API filter configuration (e.g. basic auth via `ExtensionRef`, header modification via `RequestHeaderModifier`, etc.). |
 | opencost.exporter.apiIngress.annotations | object | `{}` | Annotations for Ingress resource |
 | opencost.exporter.apiIngress.enabled | bool | `false` | Ingress for OpenCost API |
 | opencost.exporter.apiIngress.hosts | list | See [values.yaml](values.yaml) | A list of host rules used to configure the Ingress |
@@ -87,12 +93,12 @@ $ helm install opencost opencost/opencost
 | opencost.exporter.extraArgs | list | `[]` | List of extra arguments for the command, e.g.: log-format=json |
 | opencost.exporter.extraEnv | object | `{}` | Any extra environment variables you would like to pass on to the pod |
 | opencost.exporter.extraVolumeMounts | list | `[]` | A list of volume mounts to be added to the pod |
-| opencost.exporter.image | object | `{"fullImageName":null,"pullPolicy":"IfNotPresent","registry":"ghcr.io","repository":"opencost/opencost","tag":"1.118.0@sha256:c1a08767fe3c3b2964a75885c145bae0cba32225c0b4c1e0382a77566aef93e9"}` | This overrides the above defaultClusterId. Ensure the ConfigMap exists and contains the required CLUSTER_ID key. clusterIdConfigmap: cluster-id-configmap |
+| opencost.exporter.image | object | `{"fullImageName":null,"pullPolicy":"IfNotPresent","registry":"ghcr.io","repository":"opencost/opencost","tag":"1.120.2@sha256:5f37f689557dbb6737a9182b70625bba55bbba843a2caaba5a79746945a56cc6"}` | This overrides the above defaultClusterId. Ensure the ConfigMap exists and contains the required CLUSTER_ID key. clusterIdConfigmap: cluster-id-configmap |
 | opencost.exporter.image.fullImageName | string | `nil` | Override the full image name for development purposes |
 | opencost.exporter.image.pullPolicy | string | `"IfNotPresent"` | Exporter container image pull policy |
 | opencost.exporter.image.registry | string | `"ghcr.io"` | Exporter container image registry |
 | opencost.exporter.image.repository | string | `"opencost/opencost"` | Exporter container image name |
-| opencost.exporter.image.tag | string | `"1.118.0@sha256:c1a08767fe3c3b2964a75885c145bae0cba32225c0b4c1e0382a77566aef93e9"` | Exporter container image tag |
+| opencost.exporter.image.tag | string | `"1.120.2@sha256:5f37f689557dbb6737a9182b70625bba55bbba843a2caaba5a79746945a56cc6"` | Exporter container image tag |
 | opencost.exporter.livenessProbe.enabled | bool | `true` | Whether probe is enabled |
 | opencost.exporter.livenessProbe.failureThreshold | int | `3` | Number of failures for probe to be considered failed |
 | opencost.exporter.livenessProbe.initialDelaySeconds | int | `10` | Number of seconds before probe is initiated |
@@ -128,7 +134,7 @@ $ helm install opencost opencost/opencost
 | opencost.mcp.httpRoute.hostnames | list | `[]` | Hostnames for the HTTPRoute |
 | opencost.mcp.httpRoute.labels | object | `{}` | Labels for HTTPRoute resource |
 | opencost.mcp.httpRoute.parentRefs | list | See [values.yaml](values.yaml) | Gateway API parent references |
-| opencost.mcp.httpRoute.rules | list | See [values.yaml](values.yaml) | HTTPRoute rules |
+| opencost.mcp.httpRoute.rules | list | See [values.yaml](values.yaml) | HTTPRoute rules. Each rule supports an optional `filters` list at the rule level and per-backendRef `filters` for Gateway API filter configuration (e.g. basic auth via `ExtensionRef`, header modification via `RequestHeaderModifier`, etc.). |
 | opencost.mcp.ingress.annotations | object | `{}` | Annotations for Ingress resource |
 | opencost.mcp.ingress.enabled | bool | `false` | Ingress for MCP server |
 | opencost.mcp.ingress.hosts | list | See [values.yaml](values.yaml) | A list of host rules used to configure the Ingress |
@@ -213,7 +219,7 @@ $ helm install opencost opencost/opencost
 | opencost.ui.httpRoute.hostnames | list | `[]` | Hostnames for the HTTPRoute |
 | opencost.ui.httpRoute.labels | object | `{}` | Labels for HTTPRoute resource |
 | opencost.ui.httpRoute.parentRefs | list | See [values.yaml](values.yaml) | Gateway API parent references |
-| opencost.ui.httpRoute.rules | list | See [values.yaml](values.yaml) | HTTPRoute rules |
+| opencost.ui.httpRoute.rules | list | See [values.yaml](values.yaml) | HTTPRoute rules. Each rule supports an optional `filters` list at the rule level and per-backendRef `filters` for Gateway API filter configuration (e.g. basic auth via `ExtensionRef`, header modification via `RequestHeaderModifier`, etc.). |
 | opencost.ui.image.fullImageName | string | `nil` | Override the full image name for development purposes |
 | opencost.ui.image.pullPolicy | string | `"IfNotPresent"` | UI container image pull policy |
 | opencost.ui.image.registry | string | `"ghcr.io"` | UI container image registry |
@@ -230,6 +236,10 @@ $ helm install opencost opencost/opencost
 | opencost.ui.livenessProbe.initialDelaySeconds | int | `30` | Number of seconds before probe is initiated |
 | opencost.ui.livenessProbe.path | string | `"/healthz"` | Probe path |
 | opencost.ui.livenessProbe.periodSeconds | int | `10` | Probe frequency in seconds |
+| opencost.ui.nginx | object | `{"proxyConnectTimeout":180,"proxyReadTimeout":180,"proxySendTimeout":180}` | Nginx proxy timeout settings (in seconds) |
+| opencost.ui.nginx.proxyConnectTimeout | int | `180` | Timeout for establishing a connection with the proxied server |
+| opencost.ui.nginx.proxyReadTimeout | int | `180` | Timeout for reading a response from the proxied server |
+| opencost.ui.nginx.proxySendTimeout | int | `180` | Timeout for transmitting a request to the proxied server |
 | opencost.ui.readinessProbe.enabled | bool | `true` | Whether probe is enabled |
 | opencost.ui.readinessProbe.failureThreshold | int | `3` | Number of failures for probe to be considered failed |
 | opencost.ui.readinessProbe.initialDelaySeconds | int | `30` | Number of seconds before probe is initiated |
@@ -242,7 +252,7 @@ $ helm install opencost opencost/opencost
 | opencost.ui.route.host | string | `"example.local"` |  |
 | opencost.ui.route.path | string | `nil` |  |
 | opencost.ui.route.targetPort | string | `"http-ui"` | Redirect ingress to an extraPort defined on the service such as oauth-proxy |
-| opencost.ui.route.tls | list | `[]` | Ingress TLS configuration |
+| opencost.ui.route.tls | object | `{}` | Route TLS configuration as a map (e.g. with `termination` and `insecureEdgeTerminationPolicy` fields) |
 | opencost.ui.securityContext | object | `{}` | The security options the container should be run with |
 | opencost.ui.uiPath | string | `"/"` |  |
 | opencost.ui.uiPort | int | `9090` |  |
@@ -262,9 +272,11 @@ $ helm install opencost opencost/opencost
 | pdb.minAvailable | string | `nil` | Minimum number of pods that must be available after the eviction |
 | plugins.configs | string | `nil` |  |
 | plugins.enabled | bool | `false` |  |
+| plugins.existingSecret | string | `""` | Use an existing Secret for plugin configuration instead of generating one from `plugins.configs`. The referenced Secret MUST contain a `<plugin>_config.json` key for every entry in `plugins.install.plugins` (and for every plugin whose configs key would otherwise drive the install/mount list) -- the Deployment mounts those files via subPath and missing keys cause Pod startup failures. This is useful when using ExternalSecrets, Vault, or other secret-management tools so that plugin credentials do not have to be committed via `plugins.configs`. Mutually exclusive with `plugins.configs`: when `existingSecret` is set, the chart does not render a generated Secret and any `plugins.configs` entries would be silently ignored, so the chart will `fail` template rendering in that case. |
 | plugins.folder | string | `"/opt/opencost/plugin"` |  |
 | plugins.install.enabled | bool | `true` |  |
 | plugins.install.fullImageName | string | `"curlimages/curl:latest"` |  |
+| plugins.install.plugins | list | `[]` | List of plugins to download, independent of `plugins.configs`. When specified, these plugins are downloaded regardless of what's in configs, which enables using `plugins.existingSecret` for credentials while still downloading plugin binaries. This list also drives which `<plugin>_config.json` subPaths the Deployment mounts, so each listed plugin MUST have a matching config source -- either a `plugins.configs.<plugin>` entry (when `plugins.existingSecret` is empty) or a `<plugin>_config.json` key in the Secret referenced by `plugins.existingSecret`. Missing entries cause Pod startup failures because the mounted subPath will not exist. When `plugins.existingSecret` is empty, the chart validates this at template-render time and fails with an actionable error; the check is skipped when `plugins.existingSecret` is set because the contents of an externally-managed Secret cannot be introspected from Helm. Example: ["datadog", "mongodb"]. If empty, falls back to downloading plugins based on keys in configs (legacy behavior). |
 | plugins.install.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | plugins.install.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | plugins.install.securityContext.readOnlyRootFilesystem | bool | `true` |  |
