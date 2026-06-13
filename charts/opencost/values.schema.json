@@ -1266,8 +1266,7 @@
                   "type": "string"
                 },
                 "tls": {
-                  "type": "array",
-                  "items": {}
+                  "type": "object"
                 }
               },
               "required": []
@@ -1504,6 +1503,10 @@
       "required": []
     },
     "extraVolumes": {
+      "type": "array",
+      "items": {}
+    },
+    "extraObjects": {
       "type": "array",
       "items": {}
     }
